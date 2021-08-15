@@ -2,10 +2,10 @@ const djs = require('discord.js');
 const client = new djs.Client({
     intents: [djs.Intents.FLAGS.GUILD_MESSAGES, djs.Intents.FLAGS.GUILDS],
 });
-const { REST, CDN } = require('@discordjs/rest');
+const { REST } = require('@discordjs/rest');
 const fs = require('fs');
 const mongoose = require('mongoose');
-const path = require('path');
+const cachegoose = require('cachegoose');
 require('dotenv').config();
 
 client.commands = new djs.Collection();
@@ -22,6 +22,8 @@ mongoose.connect(`mongodb+srv://${process.env.MONGO_USERNAME}:${process.env.MONG
     }, (reason) => {
         console.error(`Failed Database Connection!\n${reason}`);
     });
+
+cachegoose(mongoose);
 
 client.once('ready', () => {
     console.log(`${client.user.username}#${client.user.discriminator} is ready.`);
@@ -59,6 +61,6 @@ async function loadSlashCommands() {
     }
 }
 
-loadSlashCommands();
+loadSlashCommands(); //Just so it can be async but still easily readable
 
 client.login(process.env.BOT_TOKEN);

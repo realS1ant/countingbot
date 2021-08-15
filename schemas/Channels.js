@@ -10,6 +10,10 @@ const channelSchema = new Schema({
         type: Number,
         default: 100,
     },
+    count: {
+        type: Number,
+        default: 0,
+    },
 });
 
 module.exports = model('Channels', channelSchema);

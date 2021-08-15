@@ -12,7 +12,11 @@ async function execute(client, interaction) {
         await client.commands.get(interaction.commandName).execute(client, interaction);
     } catch (error) {
         console.error(error);
-        await interaction.reply({ content: 'There was an error while executing this command!', ephemeral: true });
+        await interaction.reply({ content: 'There was an error while executing this command!', ephemeral: true }).then(() => {
+            setTimeout(() => {
+                interaction.deleteReply();
+            }, 3500);
+        });
     }
 }
 

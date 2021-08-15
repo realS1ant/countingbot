@@ -1,6 +1,6 @@
 const djs = require('discord.js');
-const fs = require('fs');
-const { getChannelInfo } = require('../utils');
+const { getChannelInfo, createChannel, updateChannel } = require('../utils');
+
 /**
  * 
  * @param {djs.Client} client 
@@ -8,68 +8,72 @@ const { getChannelInfo } = require('../utils');
  */
 async function execute(client, message) {
     if (message.author.id == client.user.id) return;
-    const numbersOnly = /^[0-9]+$/g.test(message.cleanContent.trim());
+
+    const cleanContent = message.cleanContent.trim().replace(' ', '');
+    const numbersOnly = /^[0-9]+$/g.test(cleanContent);
     const info = await getChannelInfo(message.channelId);
+
     if (!info) return;
     if (!numbersOnly) {
         message.delete();
         // message.channel.send(`:x: Hey, <@${message.author.id}>! Counting only, don't mess this up for everyone else!`).then(msg => setTimeout(() => msg.delete(), 3500)); No need for this...
         return;
     }
-    const messages = await message.channel.messages.fetch({ limit: 3 });
-    let lastMessage = [...messages.values()][1]; //Just to be extra safe we make sure to do this check here in case the bot has replied to a rule breaker and our message is not yet deleted.
-    if (lastMessage.author.id == client.user.id && lastMessage.cleanContent != '0') lastMessage = [...messages.values()][2];
-
-    // if (lastMessage.author.id == message.author.id) {
-    //     message.delete();
-    //     message.channel.send(`:x: Nope! Can't play twice in a row!`).then(msg => setTimeout(() => msg.delete(), 3500));
-    //     return;
-    // }
-
-    //pretty old school way of doing things, but still very effective
-    let lastNumber;
-    try {
-        lastNumber = Number.parseInt(lastMessage.cleanContent.trim());
-    } catch (err) {
-        //This should really never happen, but just in case! (It could posisbly also be editted/deleted??)
-        message.delete();
-        lastMessage.delete();
-        message.channel.send(`:x: Uh oh, something went wrong.`).then(msg => setTimeout(() => msg.delete(), 3500));
-        return;
-    }
 
     let number;
     try {
-        number = Number.parseInt(message.cleanContent.trim());
+        number = Number.parseInt(cleanContent);
     } catch (err) {
         message.delete();
+        //This should never happen because we varified it was all numbers above, and we also replace whitespace.
         message.channel.send(`:x: Hey, <@${message.author.id}>, something went wrong with that number.`).then(msg => setTimeout(() => msg.delete(), 3500));
         return;
     }
 
-    if (lastNumber + info.increment != number) {
+    if (info.count + info.increment != number) {
         // message.reply(`:x: Uh oh! <@${message.author.id}> messed up and now we have to start over!`);
-        message.delete(); //No griefing!
-        console.log(`${lastNumber} + ${info.increment} != ${number}`);
+        message.delete();
         return;
     }
 
     if (number >= info.goal) {
-        await winner(client, message);
+        await winner(message);
         return;
     }
 
-    console.log('it was good ;)');
+    //Clean Count
+    updateChannel(message.channelId, { count: number });
 }
 
 /**
  * 
- * @param {djs.Client} client 
  * @param {djs.Message} message 
  */
-async function winner(client, message) {
-    //We must delete the channel because bots can't delete over 100 messages.
-    message.reply(':white_check_mark: Congrats, you guys beat the goal!');
+async function winner(message) {
+    //We must delete the channel because bots can't delete channels w/ over 100 messages.
+    message.reply(':white_check_mark: Congratulations the goal was beaten!');
+
+    const newChannel = await message.channel.clone();
+    const { increment, goal } = await getChannelInfo(message.channelId);
+    /* 
+    We have to pull only these two values for two reasons, 
+      1) they're the only ones we need. 
+      2) having the _id and such when creating a record with mongoose makes many errors.
+    */
+    const info = {
+        channelId: newChannel.id,
+        count: 0,
+        increment,
+        goal,
+    };
+
+    await message.channel.delete(); //If we just delete it here then it'll get deleted by the channelDelete listener (./channelDelete.js), so we can just make a new one.
+    await createChannel(info);
+    await newChannel.send(`Congratulations, the goal was beaten! Now try and count to ${info.goal} ${info.increment != 1 ? 'by ' + info.increment + 's ' : ''}again!`);
+    await newChannel.lastMessage.pin().then(() => {
+        newChannel.lastMessage.delete(); //Delete discord's ugly pin message.
+    });
+    await newChannel.send('0'); //Give them a starting point.
 }
 
 module.exports = {
